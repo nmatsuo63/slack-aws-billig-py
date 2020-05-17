@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Notify Slack every day of AWS billing
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 10
+
+Parameters:
+  SlackWebhookUrl:
+    Type: String
+    Default: https://hooks.slack.com/services/xxxxxx/xxxx/xxxxxxx
+    #sam deployのときに指定する。
+
+Resources:
+  BillingIamRole2:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "NotifySlackToBillingLambdaPolicy2"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "ce:GetCostAndUsage"
+                Resource: "*"
+
+  SlackNotifyFunction2:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: slack_notify/
+      Handler: app.lambda_handler
+      Runtime: python3.6
+      Environment:
+        Variables:
+          # 'このURLはコミット＆公開したくないため、デプロイ時にコマンドで設定する'
+          SLACK_WEBHOOK_URL: !Ref SlackWebhookUrl
+      Role: !GetAtt BillingIamRole2.Arn
+      Events:
+        NotifySlack:
+          Type: Schedule # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Schedule: cron(0 0 * * ? *) # 日本時間AM9時に毎日通知する
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  SlackNotifyFunction:
+    Description: "Hello World Lambda Function ARN"
+    Value: !GetAtt SlackNotifyFunction2.Arn
+  SlackNotifyFunctionIamRole:
+    Description: "Implicit IAM Role created for Hello World function"
+    Value: !GetAtt BillingIamRole2.Arn
